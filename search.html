@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+
+{% block title %}Search Results - {{ super() }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>Search Results{% if query %} for "{{ query }}"{% endif %}</h2>
+    <a href="{{ url_for('index') }}" class="btn btn-outline-primary">
+        <i class="bi bi-arrow-left"></i> Back to Home
+    </a>
+</div>
+
+{% if results %}
+    <p class="text-muted">Found {{ results|length }} product(s)</p>
+    
+    <div class="row">
+        {% for product in results %}
+        <div class="col-lg-3 col-md-4 col-sm-6 mb-4">
+            <div class="card product-card h-100">
+                <div class="product-image-container">
+                    <img src="{{ product.image_url or 'https://via.placeholder.com/200' }}" class="card-img-top" alt="{{ product.name }}" style="height: 200px; object-fit: cover;">
+                    <span class="category-badge badge bg-primary">{{ product.category }}</span>
+                    <div class="product-info">
+                        <h6>{{ product.name }}</h6>
+                        <p class="mb-1"><strong>Shop:</strong> {{ product.shop }}</p>
+                        <p class="mb-1"><strong>Price:</strong> ${{ product.price }}</p>
+                        <p class="mb-1"><strong>Weight:</strong> {{ product.weight }}</p>
+                        {% if product.rating %}<p class="mb-0"><strong>Rating:</strong> {{ product.rating }}/5</p>{% endif %}
+                    </div>
+                </div>
+                <div class="card-body d-flex flex-column">
+                    <h5 class="card-title">{{ product.name }}</h5>
+                    <p class="card-text">${{ product.price }} <span class="text-muted">• {{ product.weight }}</span></p>
+                    <div class="mt-auto d-flex justify-content-between align-items-center">
+                        <span class="text-muted">{{ product.shop }}</span>
+                        <button class="btn btn-sm btn-primary add-to-wishlist-search" data-product='{{ product | tojson }}'>
+                            <i class="bi bi-plus-circle"></i> Add
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+{% else %}
+    <div class="text-center py-5">
+        <i class="bi bi-search" style="font-size: 3rem;"></i>
+        <h4 class="mt-3">No products found</h4>
+        <p class="text-muted">Try different search terms or check back later for new products.</p>
+        <a href="{{ url_for('index') }}" class="btn btn-primary mt-2">
+            <i class="bi bi-house"></i> Return Home
+        </a>
+    </div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Load wishlist from localStorage if available
+        let wishlist = [];
+        const savedWishlist = localStorage.getItem('userWishlist');
+        if (savedWishlist) {
+            wishlist = JSON.parse(savedWishlist);
+        }
+        
+        // Add event listeners to add buttons
+        document.querySelectorAll('.add-to-wishlist-search').forEach(button => {
+            button.addEventListener('click', function() {
+                const product = JSON.parse(this.dataset.product);
+                
+                // Check if product already in wishlist
+                if (wishlist.some(item => item.id === product.id)) {
+                    showAlert('This product is already in your wishlist.', 'warning');
+                    return;
+                }
+                
+                // Check budget constraints
+                const userBudget = parseFloat(localStorage.getItem('userBudget') || 0);
+                const currentTotal = wishlist.reduce((sum, item) => sum + item.price, 0);
+                
+                if (userBudget > 0 && (currentTotal + product.price) > userBudget) {
+                    showAlert('Adding this item would exceed your budget.', 'warning');
+                    return;
+                }
+                
+                wishlist.push(product);
+                localStorage.setItem('userWishlist', JSON.stringify(wishlist));
+                
+                showAlert(`"${product.name}" added to wishlist!`, 'success');
+                
+                // Update button appearance
+                this.innerHTML = '<i class="bi bi-check"></i> Added';
+                this.classList.remove('btn-primary');
+                this.classList.add('btn-success');
+                this.disabled = true;
+            });
+        });
+    });
+</script>
+{% endblock %}

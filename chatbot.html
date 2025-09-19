@@ -1,0 +1,39 @@
+<!-- Floating Chatbot HTML Structure -->
+<div class="chatbot-container">
+    <div class="chatbot-window" id="chatbotWindow">
+        <div class="chatbot-header">
+            <div class="chatbot-title">
+                <i class="bi bi-robot"></i>
+                <span>Mpilo Assistant <span class="chatbot-status"></span></span>
+            </div>
+            <button class="close-chat" id="closeChat">
+                <i class="bi bi-x"></i>
+            </button>
+        </div>
+        <div class="chatbot-messages" id="chatMessages">
+            <div class="message bot-message">
+                Hello! I'm Mpilo, your AI assistant. How can I help you today?
+            </div>
+            <div class="message bot-message">
+                You can ask me about products, recommendations, or anything else about SmartShopper.
+            </div>
+        </div>
+        <div class="suggestions">
+            <div class="suggestion-chip" onclick="sendSuggestion('What can you help me with?')">What can you help with?</div>
+            <div class="suggestion-chip" onclick="sendSuggestion('Tell me about products')">Products info</div>
+            <div class="suggestion-chip" onclick="sendSuggestion('Recommendations')">Recommendations</div>
+        </div>
+        <div class="typing-indicator" id="typingIndicator">
+            Mpilo is typing...
+        </div>
+        <div class="chatbot-input">
+            <input type="text" id="userInput" placeholder="Type your message here...">
+            <button id="sendButton">
+                <i class="bi bi-send"></i>
+            </button>
+        </div>
+    </div>
+    <div class="chatbot-icon" id="chatbotIcon">
+        <i class="bi bi-chat-dots"></i>
+    </div>
+</div>

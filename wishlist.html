@@ -1,0 +1,330 @@
+{% extends "base.html" %}
+
+{% block title %}My Wishlist - Stockvel{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2><i class="bi bi-heart"></i> My Wishlist</h2>
+                <a href="{{ url_for('index') }}" class="btn btn-outline-primary">
+                    <i class="bi bi-arrow-left"></i> Back to Recommendations
+                </a>
+            </div>
+
+            <div class="card">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">Your Saved Items</h5>
+                </div>
+                <div class="card-body">
+                    <div id="wishlist-container">
+                        <div id="wishlistEmpty" class="text-center py-5">
+                            <i class="bi bi-cart-x" style="font-size: 3rem;"></i>
+                            <h4 class="mt-3">Your wishlist is empty</h4>
+                            <p class="text-muted">Add products from recommendations to get started</p>
+                            <a href="{{ url_for('index') }}" class="btn btn-primary mt-2">
+                                <i class="bi bi-stars"></i> Browse Recommendations
+                            </a>
+                        </div>
+                        <div id="wishlistContent" class="d-none">
+                            <ul id="wishlistItems" class="list-group list-group-flush mb-4"></ul>
+                            
+                            <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                                <button id="savePdf" class="btn btn-success me-md-2">
+                                    <i class="bi bi-file-earmark-pdf"></i> Save as PDF
+                                </button>
+                                <button id="shareOptions" class="btn btn-outline-primary">
+                                    <i class="bi bi-share"></i> Share Wishlist
+                                </button>
+                            </div>
+                            
+                            <div id="budgetProgress" class="mt-4">
+                                <div class="d-flex justify-content-between">
+                                    <span class="fw-bold">Total Budget Usage:</span>
+                                    <span id="budgetUsage" class="fw-bold">$0.00 / $0.00</span>
+                                </div>
+                                <div class="progress budget-meter mt-2">
+                                    <div id="budgetProgressBar" class="progress-bar" role="progressbar" style="width: 0%"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Share Options Modal -->
+<div class="modal fade" id="shareModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Share Your Wishlist</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="d-grid gap-2">
+                    <button class="btn btn-success" onclick="shareVia('email')">
+                        <i class="bi bi-envelope"></i> Email
+                    </button>
+                    <button class="btn btn-primary" onclick="shareVia('whatsapp')">
+                        <i class="bi bi-whatsapp"></i> WhatsApp
+                    </button>
+                    <button class="btn btn-info" onclick="shareVia('sms')">
+                        <i class="bi bi-phone"></i> SMS
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- SMS Modal -->
+<div class="modal fade" id="smsModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Send Wishlist via SMS</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label for="phoneNumber" class="form-label">Phone Number</label>
+                    <input type="tel" class="form-control" id="phoneNumber" 
+                           placeholder="e.g., 27607247435" required
+                           pattern="^\+?[1-9]\d{1,14}$">
+                    <div class="form-text">Enter your phone number with country code (e.g., +27607247435)</div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="sendSmsBtn" onclick="sendSms()">
+                    <i class="bi bi-send"></i> Send SMS
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Load wishlist from localStorage
+        const savedWishlist = localStorage.getItem('userWishlist');
+        const wishlist = savedWishlist ? JSON.parse(savedWishlist) : [];
+        const userBudget = parseFloat(localStorage.getItem('userBudget') || 0);
+        
+        updateWishlistDisplay(wishlist, userBudget);
+        
+        // Set up event listeners
+        document.getElementById('savePdf').addEventListener('click', function() {
+            saveWishlistAsPdf(wishlist);
+        });
+        
+        document.getElementById('shareOptions').addEventListener('click', function() {
+            const shareModal = new bootstrap.Modal(document.getElementById('shareModal'));
+            shareModal.show();
+        });
+
+        // Add input validation for phone number
+        document.getElementById('phoneNumber').addEventListener('input', function(e) {
+            const sendBtn = document.getElementById('sendSmsBtn');
+            sendBtn.disabled = !e.target.value.trim();
+        });
+    });
+    
+    function updateWishlistDisplay(wishlist, userBudget) {
+        const emptyMessage = document.getElementById('wishlistEmpty');
+        const wishlistContent = document.getElementById('wishlistContent');
+        const list = document.getElementById('wishlistItems');
+        const budgetProgress = document.getElementById('budgetProgress');
+        
+        if (wishlist.length === 0) {
+            emptyMessage.classList.remove('d-none');
+            wishlistContent.classList.add('d-none');
+            return;
+        }
+        
+        emptyMessage.classList.add('d-none');
+        wishlistContent.classList.remove('d-none');
+        
+        list.innerHTML = '';
+        let total = 0;
+        
+        wishlist.forEach((product, index) => {
+            total += product.price;
+            list.innerHTML += `
+                <li class="list-group-item wishlist-item d-flex justify-content-between align-items-center">
+                    <div class="flex-grow-1">
+                        <h6 class="mb-1">${product.name}</h6>
+                        <small class="text-muted">${product.shop} • ${product.weight}</small>
+                    </div>
+                    <div class="d-flex align-items-center">
+                        <span class="badge bg-primary me-2">$${product.price.toFixed(2)}</span>
+                        <button class="btn btn-sm btn-outline-danger remove-item" data-index="${index}">
+                            <i class="bi bi-trash"></i> Remove
+                        </button>
+                    </div>
+                </li>
+            `;
+        });
+        
+        list.innerHTML += `
+            <li class="list-group-item d-flex justify-content-between align-items-center fw-bold bg-light">
+                <span>Total Amount</span>
+                <span class="text-success">$${total.toFixed(2)}</span>
+            </li>
+        `;
+        
+        // Update budget progress
+        if (userBudget > 0) {
+            const percentage = Math.min(100, (total / userBudget) * 100);
+            const progressBar = document.getElementById('budgetProgressBar');
+            
+            progressBar.style.width = `${percentage}%`;
+            progressBar.className = `progress-bar ${percentage > 90 ? 'bg-danger' : (percentage > 75 ? 'bg-warning' : 'bg-success')}`;
+            
+            document.getElementById('budgetUsage').textContent = `$${total.toFixed(2)} / $${userBudget.toFixed(2)}`;
+        }
+        
+        // Add event listeners to remove buttons
+        document.querySelectorAll('.remove-item').forEach(button => {
+            button.addEventListener('click', function() {
+                const index = parseInt(this.dataset.index);
+                const wishlist = JSON.parse(localStorage.getItem('userWishlist') || '[]');
+                const removedProduct = wishlist[index];
+                
+                wishlist.splice(index, 1);
+                localStorage.setItem('userWishlist', JSON.stringify(wishlist));
+                
+                updateWishlistDisplay(wishlist, userBudget);
+                showAlert(`"${removedProduct.name}" removed from wishlist.`, 'info');
+            });
+        });
+    }
+    
+    function saveWishlistAsPdf(wishlist) {
+        fetch('/save_wishlist', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({wishlist: wishlist})
+        })
+        .then(response => response.blob())
+        .then(blob => {
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.style.display = 'none';
+            a.href = url;
+            a.download = 'stockvel_wishlist.pdf';
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            showAlert('Wishlist saved as PDF!', 'success');
+        })
+        .catch(error => {
+            console.error('Error saving PDF:', error);
+            showAlert('Error saving PDF. Please try again.', 'danger');
+        });
+    }
+    
+    function shareVia(method) {
+        const wishlist = JSON.parse(localStorage.getItem('userWishlist') || '[]');
+        
+        if (wishlist.length === 0) {
+            showAlert('Wishlist is empty', 'warning');
+            return;
+        }
+        
+        if (method === 'sms') {
+            const smsModal = new bootstrap.Modal(document.getElementById('smsModal'));
+            // Reset phone input
+            document.getElementById('phoneNumber').value = '';
+            document.getElementById('sendSmsBtn').disabled = true;
+            smsModal.show();
+        } else {
+            const total = wishlist.reduce((sum, item) => sum + item.price, 0);
+            const itemCount = wishlist.length;
+            let message = `Ready to share your wishlist with ${itemCount} items (Total: $${total.toFixed(2)}) via ${method}.`;
+            showAlert(message, 'info');
+        }
+        
+        const modal = bootstrap.Modal.getInstance(document.getElementById('shareModal'));
+        modal.hide();
+    }
+
+    function sendSms() {
+        const phoneNumber = document.getElementById('phoneNumber').value.trim();
+        const wishlist = JSON.parse(localStorage.getItem('userWishlist') || '[]');
+        const sendBtn = document.getElementById('sendSmsBtn');
+        
+        if (!phoneNumber) {
+            showAlert('Please enter a phone number', 'warning');
+            return;
+        }
+        
+        if (wishlist.length === 0) {
+            showAlert('Wishlist is empty', 'warning');
+            return;
+        }
+        
+        // Show loading state
+        const originalText = sendBtn.innerHTML;
+        sendBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span> Sending...';
+        sendBtn.disabled = true;
+        
+        fetch('/send_wishlist_sms', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                wishlist: wishlist,
+                phone_number: phoneNumber
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            // Restore button state
+            sendBtn.innerHTML = originalText;
+            sendBtn.disabled = false;
+            
+            if (data.success) {
+                showAlert(data.message, 'success');
+                const smsModal = bootstrap.Modal.getInstance(document.getElementById('smsModal'));
+                smsModal.hide();
+            } else {
+                showAlert(data.error, 'danger');
+            }
+        })
+        .catch(error => {
+            // Restore button state
+            sendBtn.innerHTML = originalText;
+            sendBtn.disabled = false;
+            showAlert('Error sending SMS. Please try again.', 'danger');
+        });
+    }
+    
+    function showAlert(message, type) {
+        const alertDiv = document.createElement('div');
+        alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+        alertDiv.innerHTML = `
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        
+        document.querySelector('.container').prepend(alertDiv);
+        
+        setTimeout(() => {
+            if (alertDiv.parentElement) {
+                const bsAlert = new bootstrap.Alert(alertDiv);
+                bsAlert.close();
+            }
+        }, 5000);
+    }
+</script>
+{% endblock %}

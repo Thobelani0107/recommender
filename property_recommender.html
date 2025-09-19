@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Property Recommender - SmartShopper</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css">
+    <style>
+        .property-card {
+            transition: transform 0.2s;
+        }
+        .property-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+    </style>
+</head>
+<body>
+    <div class="container py-4">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1><i class="bi bi-house"></i> Property Recommender</h1>
+            <a href="{{ url_for('recommender') }}" class="btn btn-outline-primary">
+                <i class="bi bi-arrow-left"></i> Back to Products
+            </a>
+        </div>
+
+        <div class="card">
+            <div class="card-body">
+                <div class="row mb-3">
+                    <div class="col-md-3">
+                        <label for="country" class="form-label">Country</label>
+                        <input type="text" class="form-control" id="country" placeholder="e.g., Turkey">
+                    </div>
+                    <div class="col-md-3">
+                        <label for="maxPrice" class="form-label">Max Price (USD)</label>
+                        <input type="number" class="form-control" id="maxPrice" placeholder="e.g., 250000">
+                    </div>
+                    <div class="col-md-3">
+                        <label for="minQuality" class="form-label">Min Quality (0-10)</label>
+                        <input type="number" class="form-control" id="minQuality" placeholder="e.g., 7.0" min="0" max="10" step="0.1">
+                    </div>
+                    <div class="col-md-3">
+                        <label for="sortBy" class="form-label">Sort By</label>
+                        <select class="form-select" id="sortBy">
+                            <option value="price_asc">Price: Low to High</option>
+                            <option value="price_desc">Price: High to Low</option>
+                            <option value="quality_asc">Quality: Low to High</option>
+                            <option value="quality_desc">Quality: High to Low</option>
+                            <option value="value">Best Value</option>
+                        </select>
+                    </div>
+                </div>
+                <button class="btn btn-success w-100" onclick="getPropertyRecommendations()">
+                    <i class="bi bi-search"></i> Find Properties
+                </button>
+            </div>
+        </div>
+
+        <div id="loadingSpinner" class="text-center mt-4 d-none">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-2">Searching for properties that match your criteria...</p>
+        </div>
+
+        <div id="resultsInfo" class="alert alert-info mt-4 d-none">
+            <i class="bi bi-info-circle"></i>
+            <span id="resultsCount">0</span> properties found
+        </div>
+
+        <div id="results" class="row mt-4">
+            <!-- Results will be displayed here -->
+        </div>
+
+        <div id="noResults" class="alert alert-warning mt-4 d-none">
+            <i class="bi bi-exclamation-triangle"></i>
+            No properties found matching your criteria. Try adjusting your filters.
+        </div>
+
+        <div id="errorAlert" class="alert alert-danger mt-4 d-none">
+            <i class="bi bi-x-circle"></i>
+            <span id="errorMessage">Error loading property recommendations. Please try again.</span>
+        </div>
+    </div>
+
+    <script>
+        function getPropertyRecommendations() {
+            const country = document.getElementById('country').value;
+            const maxPrice = document.getElementById('maxPrice').value;
+            const minQuality = document.getElementById('minQuality').value;
+            const sortBy = document.getElementById('sortBy').value;
+
+            // Show loading, hide other sections
+            document.getElementById('loadingSpinner').classList.remove('d-none');
+            document.getElementById('results').classList.add('d-none');
+            document.getElementById('noResults').classList.add('d-none');
+            document.getElementById('errorAlert').classList.add('d-none');
+            document.getElementById('resultsInfo').classList.add('d-none');
+
+            fetch('/get_property_recommendations', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    country: country || null,
+                    max_price: maxPrice ? parseFloat(maxPrice) : null,
+                    min_quality: minQuality ? parseFloat(minQuality) : null,
+                    sort_by: sortBy
+                })
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.json();
+            })
+            .then(data => {
+                // Hide loading spinner
+                document.getElementById('loadingSpinner').classList.add('d-none');
+
+                if (data.success) {
+                    displayResults(data.recommendations);
+                    updateResultsInfo(data.count);
+                } else {
+                    showError(data.error || 'Failed to get property recommendations');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                document.getElementById('loadingSpinner').classList.add('d-none');
+                showError('Error loading property recommendations. Please try again.');
+            });
+        }
+
+        function displayResults(recommendations) {
+            const resultsDiv = document.getElementById('results');
+            const noResultsDiv = document.getElementById('noResults');
+
+            resultsDiv.innerHTML = '';
+            resultsDiv.classList.remove('d-none');
+            noResultsDiv.classList.add('d-none');
+
+            if (recommendations.length === 0) {
+                noResultsDiv.classList.remove('d-none');
+                resultsDiv.classList.add('d-none');
+                return;
+            }
+
+            recommendations.forEach(property => {
+                const propertyCol = document.createElement('div');
+                propertyCol.className = 'col-lg-6 col-md-12 mb-4';
+
+                propertyCol.innerHTML = `
+                    <div class="card property-card h-100">
+                        <div class="card-body">
+                            <h5 class="card-title">${property.title || 'No title available'}</h5>
+                            <p class="card-text">
+                                <strong><i class="bi bi-geo-alt"></i> Location:</strong>
+                                ${property.location || 'N/A'}, ${property.country || 'N/A'}<br>
+                                <strong><i class="bi bi-currency-dollar"></i> Price:</strong>
+                                $${(property.price_in_USD || property.price_in_usd || 0).toLocaleString()}<br>
+                                <strong><i class="bi bi-star"></i> Quality Score:</strong>
+                                ${property.quality_score ? property.quality_score.toFixed(1) : 'N/A'}/10<br>
+                                <strong><i class="bi bi-door-open"></i> Rooms:</strong> ${property.apartment_rooms || 'N/A'} |
+                                <strong><i class="bi bi-bed"></i> Bedrooms:</strong> ${property.apartment_bedrooms || 'N/A'} |
+                                <strong><i class="bi bi-bath"></i> Bathrooms:</strong> ${property.apartment_bathrooms || 'N/A'}<br>
+                                <strong><i class="bi bi-arrows-fullscreen"></i> Area:</strong> ${property.apartment_total_area || 'N/A'} m²<br>
+                                <strong><i class="bi bi-calendar"></i> Built:</strong> ${property.building_construction_year || 'N/A'}
+                            </p>
+                            ${property.url && property.url !== '#' ?
+                                `<a href="${property.url}" class="btn btn-primary" target="_blank">
+                                    <i class="bi bi-eye"></i> View Details
+                                </a>` :
+                                '<span class="text-muted">Details not available</span>'
+                            }
+                        </div>
+                    </div>
+                `;
+
+                resultsDiv.appendChild(propertyCol);
+            });
+        }
+
+        function updateResultsInfo(count) {
+            const resultsInfo = document.getElementById('resultsInfo');
+            const resultsCount = document.getElementById('resultsCount');
+
+            resultsCount.textContent = count;
+            resultsInfo.classList.remove('d-none');
+        }
+
+        function showError(message) {
+            const errorAlert = document.getElementById('errorAlert');
+            const errorMessage = document.getElementById('errorMessage');
+
+            errorMessage.textContent = message;
+            errorAlert.classList.remove('d-none');
+        }
+
+        // Allow form submission with Enter key
+        document.addEventListener('DOMContentLoaded', function() {
+            const inputs = document.querySelectorAll('input');
+            inputs.forEach(input => {
+                input.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        getPropertyRecommendations();
+                    }
+                });
+            });
+        });
+    </script>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

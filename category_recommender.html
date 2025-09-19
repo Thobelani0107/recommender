@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Category Recommender - SmartShopper</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>Category-Based Product Recommender</h1>
+
+        <div class="filters">
+            <div class="category-selector">
+                <h3>Select Categories:</h3>
+                {% for category in categories %}
+                <label>
+                    <input type="checkbox" name="category" value="{{ category }}"> {{ category }}
+                </label><br>
+                {% endfor %}
+            </div>
+
+            <input type="number" id="budget" placeholder="Max Budget (optional)">
+
+            <select id="sortBy">
+                <option value="popularity">Most Popular</option>
+                <option value="price_asc">Price: Low to High</option>
+                <option value="price_desc">Price: High to Low</option>
+            </select>
+
+            <button onclick="getCategoryRecommendations()">Get Recommendations</button>
+        </div>
+
+        <div id="results" class="results">
+            <!-- Results will be displayed here -->
+        </div>
+    </div>
+
+    <script>
+        function getCategoryRecommendations() {
+            const selectedCategories = Array.from(document.querySelectorAll('input[name="category"]:checked'))
+                .map(checkbox => checkbox.value);
+            const budget = document.getElementById('budget').value;
+            const sortBy = document.getElementById('sortBy').value;
+
+            if (selectedCategories.length === 0) {
+                alert('Please select at least one category.');
+                return;
+            }
+
+            fetch('/get_category_recommendations', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    categories: selectedCategories,
+                    budget: budget ? parseFloat(budget) : null,
+                    sort_by: sortBy
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    displayResults(data.recommendations);
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+            });
+        }
+
+        function displayResults(recommendations) {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = '';
+
+            if (recommendations.length === 0) {
+                resultsDiv.innerHTML = '<p>No products found matching your criteria.</p>';
+                return;
+            }
+
+            recommendations.forEach(product => {
+                const productDiv = document.createElement('div');
+                productDiv.className = 'product-item';
+
+                productDiv.innerHTML = `
+                    <h3>${product.name}</h3>
+                    <p><strong>Category:</strong> ${product.category}</p>
+                    <p><strong>Price:</strong> $${product.price}</p>
+                    <p><strong>Shop:</strong> ${product.shop}</p>
+                    <p><strong>Weight:</strong> ${product.weight}</p>
+                    <p><strong>Popularity:</strong> ${product.popularity}/100</p>
+                `;
+
+                resultsDiv.appendChild(productDiv);
+            });
+        }
+    </script>
+</body>
+</html>
